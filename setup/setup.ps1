@@ -106,9 +106,39 @@ Info '두 번째 PC부터 PC 설정만 하려면 S 키를 누르세요.'
 & $Adb start-server 2>$null | Out-Null
 $skipPhone = $false
 $lastShown = ''
+$stuckSince = $null      # unauthorized/offline 상태가 시작된 시각
+$lastFix = [datetime]::MinValue
+$fixCount = 0
 while ($true) {
     $state = AdbState
     if ($state -eq 'device') { break }
+
+    # 허용을 눌렀는데도 unauthorized/offline에 머무는 경우 자동 복구
+    #  - 10초마다 adb reconnect (실기기에서 허용 후에도 unauthorized가 유지되다 reconnect로 해소된 사례)
+    #  - 3회 실패 시 adb 서버 재시작 → 폰에 허용 창이 다시 뜸
+    if ($state -eq 'unauthorized' -or $state -eq 'offline') {
+        if (-not $stuckSince) { $stuckSince = Get-Date }
+        if (((Get-Date) - $stuckSince).TotalSeconds -ge 10 -and ((Get-Date) - $lastFix).TotalSeconds -ge 10) {
+            $fixCount++
+            $lastFix = Get-Date
+            if ($fixCount -le 3) {
+                Info "응답이 없어 재연결을 시도합니다 ($fixCount/3)..."
+                & $Adb reconnect 2>$null | Out-Null
+                & $Adb reconnect offline 2>$null | Out-Null
+            } elseif ($fixCount -eq 4) {
+                Info 'adb를 다시 시작합니다. 폰에 허용 창이 다시 뜨면 [허용]을 누르세요.'
+                & $Adb kill-server 2>$null | Out-Null
+                & $Adb start-server 2>$null | Out-Null
+            } elseif ($fixCount -eq 5) {
+                Warn '계속 연결되지 않습니다. 폰에서 개발자 옵션 > "USB 디버깅 권한 승인 취소"를 누른 뒤'
+                Warn '케이블을 뽑았다가 다시 꽂고, 뜨는 창에서 "이 컴퓨터에서 항상 허용" 체크 후 [허용]을 누르세요.'
+                $fixCount = 0   # 사용자가 조치한 뒤 다시 자동 복구 순서를 밟는다
+                $stuckSince = $null
+            }
+        }
+    } else {
+        $stuckSince = $null
+    }
     if ($state -ne $lastShown) {
         $lastShown = $state
         switch ($state) {
@@ -139,7 +169,6 @@ while ($true) {
         Start-Sleep -Milliseconds 200
     }
     if ($skipPhone) { break }
-    if ($state -eq 'offline') { & $Adb reconnect offline 2>$null | Out-Null }
 }
 
 if ($skipPhone) {
