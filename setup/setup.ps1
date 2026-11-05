@@ -182,8 +182,10 @@ if ($skipPhone) {
         AdbRun @('shell', 'svc', 'usb', 'setScreenUnlockedFunctions', $fn) | Out-Null
         $check = AdbRun @('shell', 'dumpsys', 'usb')
     }
-    if ($check -match 'screen_unlocked_functions=(RNDIS|NCM)') {
+    $usbDefaultOk = $check -match 'screen_unlocked_functions=(RNDIS|NCM)'
+    if ($usbDefaultOk) {
         Ok "기본 USB 구성 = USB 테더링 ($fn)"
+        Info '삼성 "기본 USB 구성" 화면에는 "폰 충전만"으로 보일 수 있으나 정상입니다. 그 화면에서 다른 항목을 누르지 마세요.'
     } else {
         Warn '기본 USB 구성을 자동 설정하지 못했습니다. 폰에서 개발자 옵션 > 기본 USB 구성 > USB 테더링 을 선택하세요.'
     }
@@ -191,7 +193,11 @@ if ($skipPhone) {
     # ---------- 6. 앱 실행 ----------
     Step 6 '앱 실행 (모니터링 자동 시작)'
     AdbRun @('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP') | Out-Null
-    AdbRun @('shell', 'am', 'start', '-n', "$Pkg/.MainActivity") | Out-Null
+    $startArgs = @('shell', 'am', 'start', '-n', "$Pkg/.MainActivity")
+    if ($usbDefaultOk) {
+        $startArgs += @('--el', 'kr.across.autotether.USB_DEFAULT_SET', [string][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+    }
+    AdbRun $startArgs | Out-Null
     Ok '앱 실행됨'
 }
 

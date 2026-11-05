@@ -22,6 +22,10 @@ object Prefs {
     fun autoOnSeenAt(c: Context) = p(c).getLong("auto_on_seen_at", 0L)
     fun setAutoOnSeen(c: Context, at: Long) = p(c).edit().putLong("auto_on_seen_at", at).apply()
 
+    /** PC 설치 스크립트가 "기본 USB 구성 = USB 테더링"을 설정한 시각. 0 = 없음. */
+    fun usbDefaultSetAt(c: Context) = p(c).getLong("usb_default_set_at", 0L)
+    fun setUsbDefaultSet(c: Context, at: Long) = p(c).edit().putLong("usb_default_set_at", at).apply()
+
     /** 마지막 PC 식별 결과. ok=false면 name은 null. */
     data class IdentifyResult(val ok: Boolean, val name: String?, val at: Long)
 

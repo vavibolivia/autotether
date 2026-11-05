@@ -75,12 +75,14 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
+        handleSetupExtras(intent)
         firstRunSetup()
         if (Prefs.isEnabled(this)) TetherMonitorService.start(this)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleSetupExtras(intent)
         if (intent.action == ACTION_OPEN_TETHER) TetherProbe.openTetherSettings(this)
     }
 
@@ -92,6 +94,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         ui.removeCallbacks(refresher)
         super.onPause()
+    }
+
+    /** PC 설치 스크립트가 넘겨 준 설정 결과(앱은 기본 USB 구성 값을 직접 읽을 권한이 없다). */
+    private fun handleSetupExtras(i: Intent?) {
+        val at = i?.getLongExtra(EXTRA_USB_DEFAULT_SET, 0L) ?: 0L
+        if (at > 0) Prefs.setUsbDefaultSet(this, at)
     }
 
     /** 첫 실행: 모니터링을 켜고, 빠진 권한을 차례로 요청한다. */
@@ -165,19 +173,21 @@ class MainActivity : AppCompatActivity() {
             "위 스위치. 재부팅 후에도 자동으로 다시 시작됩니다.",
             "켜기" to { enabled.isChecked = true },
         )
+        val setAt = Prefs.usbDefaultSetAt(this)
         item(
             when {
-                autoAt > 0 -> Mark.OK
+                autoAt > 0 || setAt > 0 -> Mark.OK
                 !devOptionsOn() -> Mark.NG
                 else -> Mark.UNKNOWN
             },
             "4. 연결 시 테더링 자동 켜기",
             when {
-                autoAt > 0 -> "확인됨 — ${FMT.format(Date(autoAt))} 연결 때 자동으로 켜졌습니다."
+                autoAt > 0 -> "동작 확인됨 — ${FMT.format(Date(autoAt))} 연결 때 자동으로 켜졌습니다."
+                setAt > 0 -> "설정됨 (PC 설치 스크립트, ${FMT.format(Date(setAt))}). " +
+                    "삼성 ‘기본 USB 구성’ 화면에는 ‘폰 충전만’으로 보일 수 있지만 정상이니 그 화면에서 다른 항목을 누르지 마세요."
                 !devOptionsOn() -> "개발자 옵션이 꺼져 있습니다. 설정 → 휴대전화 정보 → 소프트웨어 정보 → 빌드번호를 7번 누른 뒤, " +
                     "개발자 옵션 → 기본 USB 구성 → USB 테더링. (PC 설치 스크립트를 쓰면 자동 설정)"
-                else -> "개발자 옵션 → 기본 USB 구성 → USB 테더링. PC 설치 스크립트를 썼다면 이미 설정되어 있고, " +
-                    "잠금 해제 상태로 PC에 연결하면 확인됩니다."
+                else -> "개발자 옵션 → 기본 USB 구성 → USB 테더링을 선택하세요. (PC 설치 스크립트를 쓰면 자동 설정)"
             },
             (if (devOptionsOn()) "기본 USB 구성" else "휴대전화 정보") to ::openDevOrAbout,
         )
@@ -279,6 +289,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_OPEN_TETHER = "kr.across.autotether.OPEN_TETHER"
+        const val EXTRA_USB_DEFAULT_SET = "kr.across.autotether.USB_DEFAULT_SET"
         private const val REQ_NOTIF = 1
         private val FMT = SimpleDateFormat("MM-dd HH:mm", Locale.KOREA)
     }
