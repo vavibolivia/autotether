@@ -263,7 +263,8 @@ class TetherMonitorService : Service() {
 
     private fun record(pc: PcIdentity, on: Boolean) {
         val prev = store.get(pc.key)
-        val firstInSession = !pcCounted
+        // 서비스 재시작(앱 업데이트·권한 변경·재부팅) 때 이미 연결돼 있던 세션은 새 연결로 세지 않는다
+        val firstInSession = !pcCounted && (!sessionPreexisting || prev == null)
         pcCounted = true
         store.put(
             PcRecord(
